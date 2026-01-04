@@ -45,12 +45,12 @@ Esta é uma recomendação para prevenir erros com dependências do Windows e pa
 
       docker build -t vagrant-runner .
 - Entra no contentor: Corre isto no terminal
-  - Em Windows:
+  - Em Windows:
 
-      docker run --rm -it -v ${PWD}:/app vagrant-runner bash
-  - Em Mac/Linux:
+            docker run --rm -it -v ${PWD}:/app vagrant-runner bash
+  - Em Mac/Linux:
 
-    docker run -it --rm -v "$(pwd)":/app vagrant-runner bash
+          docker run -it --rm -v "$(pwd)":/app vagrant-runner bash
  
 ## 4. Configurar as Variáveis
 
