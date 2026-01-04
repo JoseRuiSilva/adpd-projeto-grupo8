@@ -1,0 +1,10 @@
+*.json
+gcp_key
+gcp_key.pub
+
+.vagrant/
+__pycache__/
+*.pyc
+
+venv/
+.env

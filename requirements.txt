@@ -1,0 +1,4 @@
+duckdb
+google-cloud-storage
+google-auth
+requests
