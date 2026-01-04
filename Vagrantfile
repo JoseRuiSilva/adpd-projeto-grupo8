@@ -10,13 +10,10 @@ Vagrant.configure("2") do |config|
   google_project_id = data["project_id"]
   google_email = data["client_email"]
 
-  bucket_name = "adpd-dados-2025-novo"
+  bucket_name = "adpd-dados-grupo8-final"
   if ENV['GOOGLE_BUCKET_NAME']
     bucket_name = ENV['GOOGLE_BUCKET_NAME']
   end
-
-  puts "A carregar configuracao para o projeto: #{google_project_id}"
-  puts "Usando o bucket: #{bucket_name}"
 
   # Configuracao da maquina virtual
   config.vm.box = "google/gce"
@@ -29,7 +26,7 @@ Vagrant.configure("2") do |config|
     google.scopes = ['https://www.googleapis.com/auth/cloud-platform']
     google.image_family = 'ubuntu-2404-lts-amd64'
     google.image_project_id = 'ubuntu-os-cloud'
-    google.machine_type = 'e2-micro'
+    google.machine_type = 'e2-medium'
     google.zone = 'us-central1-a'
     google.disk_size = 30
     google.preemptible = true
@@ -46,6 +43,7 @@ Vagrant.configure("2") do |config|
   config.vm.synced_folder ".", "/vagrant", disabled: true
 
   config.vm.provision "file", source: "./src", destination: "$HOME/src"
+  config.vm.provision "file", source: "./gcp-key.json", destination: "$HOME/gcp-key.json"
   config.vm.provision "file", source: "./bootstrap.sh", destination: "$HOME/bootstrap.sh"
   config.vm.provision "file", source: "./requirements.txt", destination: "$HOME/requirements.txt"
 

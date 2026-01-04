@@ -3,7 +3,7 @@ import os
 import sys
 from google.cloud import storage
 
-bucket_name = "adpd-dados-2025-novo"
+bucket_name = "adpd-dados-grupo8-final"
 if len(sys.argv) > 1:
     bucket_name = sys.argv[1]
 
@@ -28,7 +28,7 @@ for name, url in datasets.items():
     
     blob = bucket.blob(blob_path)
     if blob.exists():
-        print("Ficheiro, ", name, " já existe. A saltar...")
+        print("Ficheiro ", name, " já existe. A saltar...")
         continue
 
     print("A processar ficheiro ", name)

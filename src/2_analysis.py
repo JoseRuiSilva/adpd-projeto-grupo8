@@ -3,16 +3,20 @@ import sys
 import os
 from google.cloud import storage
 
+print("Iniciando o processo de análise de dados...")
 bucket_name = "adpd-dados-2025-novo"
 if len(sys.argv) > 1:
     bucket_name = sys.argv[1]
 
+print("Usando o bucket:", bucket_name)
 local_trans = "/tmp/transactions.parquet"
 local_cust = "/tmp/customers.parquet"
 local_art = "/tmp/articles.parquet"
 output_csv = "resultado_analise.csv"
 
-client = storage.Client()
+print("A configurar o cliente GCP...")
+caminho_chave = os.path.expanduser("~/gcp-key.json")
+client = storage.Client.from_service_account_json(caminho_chave)
 bucket = client.bucket(bucket_name)
 
 print("Baixando ficheiros do bucket:", bucket_name)
