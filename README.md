@@ -28,7 +28,7 @@ Para que o script funcione, é necessário configurar as credenciais:
         - Compute Engine API;
         - Cloud Resource Manager API;
         - IAM (Identity and Access Management) API;
-- Criar um Bucket: No menu "Cloud Storage", cria um bucket único (para facilitar, cria com o nome adpd-dados-2025-novo) onde os dados serão gravados.
+- Criar um Bucket: No menu "Cloud Storage", cria um bucket único onde os dados serão gravados.
 - Criar Service Account: Cria uma nova Service Account e dá-lhe permissões de Compute Admin v1 e Editor.
 - Baixar chave JSON: nessa Service Account, vai a "Keys">"Add Key">"Create new key" (JSON), renomeia a chave transferida para gcp-key.json e coloca nesta pasta do git hub na tua máquina.
 
