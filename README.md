@@ -17,9 +17,6 @@ A primeira coisa a fazer é trazer estes ficheiros para o teu computador.
 - Corre o comando:
 
       git clone https://github.com/JoseRuiSilva/adpd-projeto-grupo8.git
-- Entra na pasta criada:
-
-      cd adpd-projeto-grupo8
 
 Agora podes entrar na pasta e iniciar.
 
@@ -27,8 +24,12 @@ Agora podes entrar na pasta e iniciar.
 
 Para que o script funcione, é necessário configurar as credenciais:
 - Criar um Projeto: Vai à consola da GCP e usa um projeto que ja tenhas criado ou cria um novo. Anota o Project ID desse projeto.
-- Criar um Bucket: No menu "Cloud Storage", cria um bucket único (para facilitar, cria com o nome adpd-dados-2025-novo) onde os dados serão gravados.
-- Criar Service Account: Cria uma nova Service Account e dá-lhe permissões de Compute Admin e Storage Admin.
+- Verifica se as seguintes API's estão ligadas:
+        - Compute Engine API;
+        - Cloud Resource Manager API;
+        - IAM (Identity and Access Management) API;
+- Criar um Bucket: No menu "Cloud Storage", cria um bucket único onde os dados serão gravados.
+- Criar Service Account: Cria uma nova Service Account e dá-lhe permissões de Compute Admin v1 e Editor.
 - Baixar chave JSON: nessa Service Account, vai a "Keys">"Add Key">"Create new key" (JSON), renomeia a chave transferida para gcp-key.json e coloca nesta pasta do git hub na tua máquina.
 
 ## 2. Configuração de Segurança SSH
