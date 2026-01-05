@@ -20,7 +20,6 @@ bucket = storage_client.bucket(bucket_name)
 con = duckdb.connect()
 con.sql("INSTALL httpfs; LOAD httpfs;")
 
-print("Iniciando ingestao para o bucket:")
 
 for name, url in datasets.items():
     parquet_file = name + ".parquet"
@@ -45,5 +44,3 @@ for name, url in datasets.items():
     
     if os.path.exists(parquet_file):
         os.remove(parquet_file)
-
-print("Processo de ingestao terminado.")

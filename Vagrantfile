@@ -48,12 +48,5 @@ Vagrant.configure("2") do |config|
   config.vm.provision "file", source: "./requirements.txt", destination: "$HOME/requirements.txt"
 
   config.vm.provision "shell", privileged: false, inline: "chmod +x $HOME/bootstrap.sh && $HOME/bootstrap.sh #{bucket_name}"
-
-  # Destroi a maquina no fim para nao gastar dinheiro
-  config.trigger.after :up do |trigger|
-    trigger.name = "Auto-Destroy"
-    trigger.info = "Processo terminado. A desligar a maquina..."
-    trigger.run = { inline: "vagrant destroy -f" }
-  end
   
 end

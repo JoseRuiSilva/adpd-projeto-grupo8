@@ -1,35 +1,31 @@
 import duckdb
 import sys
 import os
+import time
 from google.cloud import storage
 
-print("Iniciando o processo de análise de dados...")
-bucket_name = "adpd-dados-2025-novo"
+bucket_name = "adpd-dados-grupo8-final"
 if len(sys.argv) > 1:
     bucket_name = sys.argv[1]
 
-print("Usando o bucket:", bucket_name)
 local_trans = "/tmp/transactions.parquet"
 local_cust = "/tmp/customers.parquet"
 local_art = "/tmp/articles.parquet"
-output_csv = "resultado_analise.csv"
 
-print("A configurar o cliente GCP...")
 caminho_chave = os.path.expanduser("~/gcp-key.json")
 client = storage.Client.from_service_account_json(caminho_chave)
 bucket = client.bucket(bucket_name)
 
-print("Baixando ficheiros do bucket:", bucket_name)
+
 bucket.blob("raw/transactions.parquet").download_to_filename(local_trans)
 bucket.blob("raw/customers.parquet").download_to_filename(local_cust)
 bucket.blob("raw/articles.parquet").download_to_filename(local_art)
 
 con = duckdb.connect()
-con.sql("SET memory_limit='600MB';") 
+con.sql("SET memory_limit='3GB';") 
 con.sql("SET temp_directory='/tmp/duckdb_temp.tmp';")
 
-print("A criar tabelas temporarias com limpeza de dados...")
-
+# Limpeza e transformação dos dados
 con.sql(f"""
     CREATE TABLE art AS
     SELECT 
@@ -69,28 +65,153 @@ con.sql(f"""
     AND article_id IS NOT NULL
 """)
 
-print("A executar a queris de analise...")
-query1 = f"""
+# Executar as queries
+
+# 1. CARATERIZAÇÃO DE CLIENTES
+start_time = time.time()
+q_clientes = f"""
+COPY (
+    WITH base AS (
+        SELECT
+            t.customer_id,
+            t.t_dat AS dt,
+            t.article_id,
+            t.price,
+            t.sales_channel_id,
+            a.section_name
+        FROM trans t
+        LEFT JOIN art a ON t.article_id = a.article_id
+    ),
+    agg AS (
+        SELECT
+            customer_id,
+            COUNT(*) AS total_items,
+            SUM(price) AS total_value,
+            MAX(dt) AS last_purchase_date
+        FROM base
+        GROUP BY customer_id
+    ),
+    fav_channel AS (
+        SELECT customer_id, sales_channel_id
+        FROM (
+            SELECT customer_id, sales_channel_id,
+                   ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY COUNT(*) DESC) as rn
+            FROM base
+            GROUP BY customer_id, sales_channel_id
+        ) x WHERE rn = 1
+    ),
+    fav_section AS (
+        SELECT customer_id, section_name
+        FROM (
+            SELECT customer_id, section_name,
+                   ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY COUNT(*) DESC) as rn
+            FROM base
+            WHERE section_name IS NOT NULL
+            GROUP BY customer_id, section_name
+        ) x WHERE rn = 1
+    )
+    SELECT
+        a.customer_id,
+        c.club_member_status,
+        a.total_items,
+        ROUND(a.total_value, 2) as total_value,
+        a.last_purchase_date,
+        DATE_DIFF('day', a.last_purchase_date, CURRENT_DATE) AS days_since_last_purchase,
+        ch.sales_channel_id AS favourite_channel,
+        s.section_name AS favourite_section
+    FROM agg a
+    LEFT JOIN fav_channel ch USING (customer_id)
+    LEFT JOIN fav_section s USING (customer_id)
+    LEFT JOIN cust c ON a.customer_id = c.customer_id
+) TO 'resultado_clientes.csv' (HEADER, DELIMITER ',')
+"""
+con.sql(q_clientes)
+print(f"Concluído queria 1 em {time.time() - start_time:.2f}s")
+
+
+# 2. CARATERIZAÇÃO DE PRODUTOS (Sazonalidade)
+start_time = time.time()
+q_produtos = f"""
 COPY (
     SELECT 
-        t.customer_id, 
-        COUNT(*) as total_compras, 
-        SUM(t.price) as total_gasto, 
-        c.age 
-    FROM trans t 
-    LEFT JOIN cust c ON t.customer_id = c.customer_id 
-    GROUP BY ALL
-) TO '{output_csv}' (HEADER)
+        a.product_group_name,
+        COUNT(*) as total_vendas,
+        ROUND(SUM(t.price), 2) as valor_total,
+        ROUND(SUM(CASE WHEN MONTH(t.t_dat) IN (12, 1, 2) THEN t.price ELSE 0 END), 2) as valor_inverno,
+        ROUND(SUM(CASE WHEN MONTH(t.t_dat) IN (3, 4, 5) THEN t.price ELSE 0 END), 2) as valor_primavera,
+        ROUND(SUM(CASE WHEN MONTH(t.t_dat) IN (6, 7, 8) THEN t.price ELSE 0 END), 2) as valor_verao,
+        ROUND(SUM(CASE WHEN MONTH(t.t_dat) IN (9, 10, 11) THEN t.price ELSE 0 END), 2) as valor_outono
+    FROM trans t
+    JOIN art a ON t.article_id = a.article_id
+    GROUP BY a.product_group_name
+    ORDER BY valor_total DESC
+) TO 'resultado_produtos.csv' (HEADER, DELIMITER ',')
 """
+con.sql(q_produtos)
+print(f"Concluído queria 2 em {time.time() - start_time:.2f}s")
 
-con.sql(query1)
 
-print("A enviar o resultado para:", bucket_name)
-bucket.blob("gold/" + output_csv).upload_from_filename(output_csv)
+# 3. TOP 10 CLIENTES
+start_time = time.time()
+q_top10 = f"""
+COPY (
+    WITH Top10Customers AS (
+        SELECT customer_id, SUM(price) as total_spent
+        FROM trans
+        GROUP BY customer_id
+        ORDER BY total_spent DESC
+        LIMIT 10
+    )
+    SELECT 
+        tc.customer_id,
+        ROUND(tc.total_spent, 2) as total_spent,
+        a.prod_name,
+        a.product_group_name,
+        a.colour_group_name,
+        COUNT(*) as quantity_bought
+    FROM Top10Customers tc
+    JOIN trans t ON tc.customer_id = t.customer_id
+    JOIN art a ON t.article_id = a.article_id
+    GROUP BY ALL
+    ORDER BY total_spent DESC, quantity_bought DESC
+) TO 'resultado_top10.csv' (HEADER, DELIMITER ',')
+"""
+con.sql(q_top10)
+print(f"Concluída querie 3 em {time.time() - start_time:.2f}s")
 
-os.remove(local_trans)
-os.remove(local_cust)
-os.remove(local_art)
-os.remove(output_csv)
 
-print("Processo concluido com sucesso")
+# 4. DESEMPENHO AO LONGO DO TEMPO
+start_time = time.time()
+q_tempo = f"""
+COPY (
+    SELECT 
+        strftime(t.t_dat, '%Y-%m') AS year_month,
+        a.product_group_name,
+        COUNT(*) AS items_sold,
+        ROUND(SUM(t.price), 2) AS revenue
+    FROM trans t
+    JOIN art a ON t.article_id = a.article_id
+    GROUP BY year_month, a.product_group_name
+    ORDER BY year_month ASC, revenue DESC
+) TO 'resultado_tempo.csv' (HEADER, DELIMITER ',')
+"""
+con.sql(q_tempo)
+print(f"Concluída querie 4 em {time.time() - start_time:.2f}s")
+
+
+# 4. Upload dos Resultados
+bucket.blob("gold/resultado_clientes.csv").upload_from_filename("resultado_clientes.csv")
+bucket.blob("gold/resultado_produtos.csv").upload_from_filename("resultado_produtos.csv")
+bucket.blob("gold/resultado_top10.csv").upload_from_filename("resultado_top10.csv")
+bucket.blob("gold/resultado_tempo.csv").upload_from_filename("resultado_tempo.csv")
+
+bucket.blob("gold/SUCESSO.txt").upload_from_string("Processamento concluído com sucesso.")
+
+files_to_remove = [
+    local_trans, local_cust, local_art, 
+    "resultado_clientes.csv", "resultado_produtos.csv", 
+    "resultado_top10.csv", "resultado_tempo.csv"
+]
+for f in files_to_remove:
+    if os.path.exists(f): 
+        os.remove(f)
