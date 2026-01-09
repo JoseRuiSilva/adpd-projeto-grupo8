@@ -16,7 +16,6 @@ caminho_chave = os.path.expanduser("~/gcp-key.json")
 client = storage.Client.from_service_account_json(caminho_chave)
 bucket = client.bucket(bucket_name)
 
-
 bucket.blob("raw/transactions.parquet").download_to_filename(local_trans)
 bucket.blob("raw/customers.parquet").download_to_filename(local_cust)
 bucket.blob("raw/articles.parquet").download_to_filename(local_art)
@@ -25,7 +24,6 @@ con = duckdb.connect()
 con.sql("SET memory_limit='3GB';") 
 con.sql("SET temp_directory='/tmp/duckdb_temp.tmp';")
 
-# Limpeza e transformação dos dados
 con.sql(f"""
     CREATE TABLE art AS
     SELECT 
@@ -65,7 +63,6 @@ con.sql(f"""
     AND article_id IS NOT NULL
 """)
 
-# Executar as queries
 
 # 1. CARATERIZAÇÃO DE CLIENTES
 start_time = time.time()
@@ -126,7 +123,7 @@ COPY (
 ) TO 'resultado_clientes.csv' (HEADER, DELIMITER ',')
 """
 con.sql(q_clientes)
-print(f"Concluído queria 1 em {time.time() - start_time:.2f}s")
+print(f"Concluído query 1 em {time.time() - start_time:.2f}s")
 
 
 # 2. CARATERIZAÇÃO DE PRODUTOS (Sazonalidade)
@@ -148,7 +145,7 @@ COPY (
 ) TO 'resultado_produtos.csv' (HEADER, DELIMITER ',')
 """
 con.sql(q_produtos)
-print(f"Concluído queria 2 em {time.time() - start_time:.2f}s")
+print(f"Concluído query 2 em {time.time() - start_time:.2f}s")
 
 
 # 3. TOP 10 CLIENTES
@@ -177,29 +174,43 @@ COPY (
 ) TO 'resultado_top10.csv' (HEADER, DELIMITER ',')
 """
 con.sql(q_top10)
-print(f"Concluída querie 3 em {time.time() - start_time:.2f}s")
+print(f"Concluída query 3 em {time.time() - start_time:.2f}s")
 
 
-# 4. DESEMPENHO AO LONGO DO TEMPO
+# 4. DESEMPENHO AO LONGO DO TEMPO (Agrupado por Mes e Cor)
 start_time = time.time()
 q_tempo = f"""
 COPY (
-    SELECT 
-        strftime(t.t_dat, '%Y-%m') AS year_month,
-        a.product_group_name,
-        COUNT(*) AS items_sold,
-        ROUND(SUM(t.price), 2) AS revenue
-    FROM trans t
-    JOIN art a ON t.article_id = a.article_id
-    GROUP BY year_month, a.product_group_name
-    ORDER BY year_month ASC, revenue DESC
+    WITH base AS (
+        SELECT
+            CAST(t.t_dat AS DATE) AS dt,
+            DATE_TRUNC('month', CAST(t.t_dat AS DATE)) AS month,
+            t.article_id,
+            t.price,
+            a.colour_group_name
+        FROM trans t
+        LEFT JOIN art a
+            ON t.article_id = a.article_id
+    ),
+    agg AS (
+        SELECT
+            month,
+            colour_group_name,
+            COUNT(*) AS total_items,
+            SUM(price) AS total_value
+        FROM base
+        WHERE colour_group_name IS NOT NULL
+        GROUP BY month, colour_group_name
+    )
+    SELECT *
+    FROM agg
+    ORDER BY month, total_value DESC
 ) TO 'resultado_tempo.csv' (HEADER, DELIMITER ',')
 """
 con.sql(q_tempo)
-print(f"Concluída querie 4 em {time.time() - start_time:.2f}s")
+print(f"Concluída query 4 em {time.time() - start_time:.2f}s")
 
 
-# 4. Upload dos Resultados
 bucket.blob("gold/resultado_clientes.csv").upload_from_filename("resultado_clientes.csv")
 bucket.blob("gold/resultado_produtos.csv").upload_from_filename("resultado_produtos.csv")
 bucket.blob("gold/resultado_top10.csv").upload_from_filename("resultado_top10.csv")
